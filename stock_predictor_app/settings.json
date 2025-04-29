@@ -1,0 +1,20 @@
+{
+    "Chart Settings": {
+        "chart_type": "Candlestick",
+        "default_ma": {
+            "MA20": true,
+            "MA50": true,
+            "MA200": true
+        },
+        "show_volume": true
+    },
+    "Analysis Settings": {
+        "default_timeframe": "1 Year",
+        "default_model": "LSTM",
+        "prediction_days": 30
+    },
+    "Alert Settings": {
+        "price_alerts": true,
+        "price_change_threshold": 5
+    }
+}
