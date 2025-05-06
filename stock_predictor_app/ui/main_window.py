@@ -1465,9 +1465,14 @@ class MainWindow(QMainWindow):
         details = [
             ("Model", str(record.get("model", "Unknown")), "color: #58a6ff;"),
             ("Days", f"{record.get('days', record.get('forecast_days', 'N/A'))} days", "color: #f0883e;"),
-            ("MSE", str(record.get("mse", "N/A")), "color: #3fb950;"),
-            ("Data Points", str(record.get("data_points", "N/A")), "color: #a371f7;")
+            ("MSE", str(record.get("mse", "N/A")), "color: #3fb950;")
         ]
+        
+        # Add MAPE if available
+        if 'mape' in record:
+            details.append(("MAPE", f"{record['mape']:.2f}%", "color: #9c36b5;"))
+            
+        details.append(("Data Points", str(record.get("data_points", "N/A")), "color: #a371f7;"))
         
         for i, (label, value, color) in enumerate(details):
             row, col = divmod(i, 2)
@@ -1595,9 +1600,18 @@ class MainWindow(QMainWindow):
     def prediction_completed(self, result):
         """Handle completed prediction"""
         # Update the last record (which should be the processing one)
+        print(f"Prediction completed with result: {result.keys()}")
+        print(f"Prediction data: Length={len(result['prediction'])}, MSE={result['mse']}")
+        
         for record in self.prediction_record.records:
             if record['status'] == 'Processing':
+                # Debug before update
+                print(f"Updating record {record['id']} for {record['symbol']} ({record['model']})")
                 record.update(result)
+                
+                # Debug after update
+                print(f"Updated record now has prediction with length: {len(record['prediction'])}")
+                print(f"Record MSE: {record['mse']}")
                 break
         
         self.prediction_record.save_records()
@@ -1618,9 +1632,20 @@ class MainWindow(QMainWindow):
     def show_prediction_details(self, record):
         """Show detailed prediction results in a modern, informative dialog"""
         try:
+            print(f"Showing details for record: {record['id']} - {record['symbol']}")
+            print(f"Record data: {record.keys()}")
+            
+            if not record.get('prediction') or len(record['prediction']) == 0:
+                QMessageBox.warning(self, "Warning", "No prediction data available for this record.")
+                return
+                
+            print(f"Prediction data length: {len(record['prediction'])}")
+            print(f"First 5 predictions: {record['prediction'][:5]}")
+            
             # Fetch historical data for the predicted stock
             try:
                 data, _ = get_stock_data(record['symbol'], period="1mo")
+                print(f"Historical data fetched: {len(data)} rows")
             except StockDataError as e:
                 QMessageBox.warning(self, "Warning", f"Could not fetch historical data: {str(e)}")
                 data = None
@@ -1673,9 +1698,14 @@ class MainWindow(QMainWindow):
             
             metrics = [
                 ("Forecast", f"{record['days']} days", "#238636"),
-                ("MSE", f"{record['mse']:.4f}", "#ff7b00"),
-                ("Status", record['status'], "#4ade80" if record['status'] == "Completed" else "#f87171")
+                ("MSE", f"{record.get('mse', 0):.4f}", "#ff7b00")
             ]
+            
+            # Add MAPE if available
+            if 'mape' in record:
+                metrics.append(("MAPE", f"{record['mape']:.2f}%", "#9c36b5"))
+                
+            metrics.append(("Status", record['status'], "#4ade80" if record['status'] == "Completed" else "#f87171"))
             
             for label, value, color in metrics:
                 metric_frame = QFrame()
@@ -1685,7 +1715,7 @@ class MainWindow(QMainWindow):
                         border: 1px solid {color}30;
                         border-radius: 12px;
                         padding: 12px;
-                        min-width: 150px;
+                        min-width: 120px;
                     }}
                 """)
                 metric_layout = QVBoxLayout(metric_frame)
@@ -1751,12 +1781,20 @@ class MainWindow(QMainWindow):
                 last_date = data.index[-1]
                 prediction_dates = [last_date + timedelta(days=i+1) for i in range(len(record['prediction']))]
                 
+                # Ensure prediction data is a flat array for plotting
+                prediction_values = np.array(record['prediction'])
+                if len(prediction_values.shape) > 1 and prediction_values.shape[1] == 1:
+                    print("Flattening nested prediction values for plotting")
+                    prediction_values = np.array([float(p[0]) for p in prediction_values])
+                elif isinstance(record['prediction'][0], list):
+                    print("Flattening list of lists prediction values")
+                    prediction_values = np.array([float(p[0]) if isinstance(p, list) and len(p) > 0 else float(p) for p in record['prediction']])
+                
                 # Plot prediction
-                ax.plot(prediction_dates, record['prediction'], 
+                ax.plot(prediction_dates, prediction_values, 
                        label='Prediction', color='#3fb950', linewidth=2, linestyle='--')
                 
                 # Add confidence intervals
-                prediction_values = np.array(record['prediction'])
                 std_dev = np.std(data['Close'].iloc[-30:])
                 z_score = 1.96  # For 95% confidence
                 
