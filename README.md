@@ -30,7 +30,7 @@ Stock Predict App is a sophisticated desktop application for stock market analys
 ## 🚀 Installation
 
 ### Prerequisites
-- Python 3.9 or higher
+- Python 3.10
 - Internet connection for fetching stock data
 
 ### Setup
